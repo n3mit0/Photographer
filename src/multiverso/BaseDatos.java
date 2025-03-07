@@ -13,14 +13,81 @@ public class BaseDatos {
 
     public BaseDatos() {
         recuperador = new TablaHash();
-        try {
-            getItems();
+        getItems();
+    }
+
+    // Método para guardar (append) un item en el archivo, uno por línea
+    private void appendItem(Item item) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_PATH.toFile(), true))) {
+            writer.write(item.toString());
+            writer.newLine();
         } catch (IOException e) {
-            System.err.println("Error al cargar la base de datos: " + e.getMessage());
+            System.err.println("Error al guardar el item en el archivo: " + e.getMessage());
         }
     }
 
-    private void getItems() throws IOException {
+// Método para procesar cada línea, crear el objeto correspondiente y guardarlo
+    private void processLine(String linea) {
+        if (linea.trim().isEmpty()) {
+            return;
+        }
+
+        String[] partes = linea.split(":");
+        if (partes.length < 4) {
+            System.err.println("Formato incorrecto en la línea: " + linea);
+            return;
+        }
+
+        try {
+            String tipo = partes[0].trim().toLowerCase();
+            String nombre = partes[1].trim();
+            int cantidad = Integer.parseInt(partes[2].trim());
+            Item item = null;
+
+            switch (tipo) {
+                case "comida":
+                    // Se requiere al menos 8 partes para tener: tipo, nombre, cantidad, algo, tiempo, algo, estado y categoría
+                    if (partes.length >= 8) {
+                        int tiempo = Integer.parseInt(partes[4].trim());
+                        String estado = partes[6].trim();
+                        String categoria = partes[7].trim();
+                        // Se agrega una descripción por defecto para cumplir con el constructor
+                        item = new Comida(tiempo, new ListaEnlazada[]{new ListaEnlazada()},
+                                nombre, cantidad, estado, categoria, "Comida sin descripción");
+                    } else {
+                        System.err.println("Datos insuficientes para comida en línea: " + linea);
+                    }
+                    break;
+                case "weapon":
+                    if (partes.length >= 7) {
+                        int damage = Integer.parseInt(partes[4].trim());
+                        int durabilidad = Integer.parseInt(partes[5].trim());
+                        int rango = Integer.parseInt(partes[6].trim());
+                        item = new Weapon(damage, durabilidad, rango, nombre, cantidad, "Arma sin descripción");
+                    } else {
+                        System.err.println("Datos insuficientes para weapon en línea: " + linea);
+                    }
+                    break;
+                case "craftable":
+                    item = new Craftable(new Item[]{}, nombre, cantidad, "Objeto craftable sin descripción");
+                    break;
+                default:
+                    System.err.println("Tipo desconocido o datos insuficientes: " + tipo);
+            }
+
+            if (item != null) {
+                // Inserta el objeto en la estructura (por ejemplo, una tabla hash)
+                recuperador.insertar(item);
+                // Guarda el objeto en el archivo (append, uno por línea)
+                appendItem(item);
+            }
+        } catch (NumberFormatException e) {
+            System.err.println("Error de conversión en línea: " + linea + " - " + e.getMessage());
+        }
+    }
+
+// Método para leer el archivo y procesar cada línea
+    private void getItems() {
         File archivo = FILE_PATH.toFile();
         if (!archivo.exists()) {
             System.err.println("Archivo no encontrado: " + FILE_PATH);
@@ -30,84 +97,13 @@ public class BaseDatos {
         try (BufferedReader reader = new BufferedReader(new FileReader(archivo))) {
             String linea;
             while ((linea = reader.readLine()) != null) {
-                if (linea.trim().isEmpty()) {
-                    continue;
-                }
-
-                String[] partes = linea.split(":");
-                if (partes.length < 4) {
-                    System.err.println("Formato incorrecto en la línea: " + linea);
-                    continue;
-                }
-
-                try {
-                    String tipo = partes[0].trim().toLowerCase();
-                    String nombre = partes[1].trim();
-                    int cantidad = Integer.parseInt(partes[2].trim());
-                    boolean equip = Boolean.parseBoolean(partes[3].trim());
-                    Item item = null;
-
-                    switch (tipo) {
-                        case "comida":
-                            if (partes.length >= 7) {
-                                int tiempo = Integer.parseInt(partes[4].trim());
-                                String obtain = partes[5].trim();
-                                String estado = partes[6].trim();
-                                String categoria = (partes.length > 7) ? partes[7].trim() : "Desconocida";
-                                item = new Comida(tiempo, new ListaEnlazada[]{new ListaEnlazada()},
-                                        nombre, cantidad, equip, estado, categoria, obtain);
-                            } else {
-                                System.err.println("Datos insuficientes para comida en línea: " + linea);
-                            }
-                            break;
-                        case "weapon":
-                            if (partes.length >= 7) {
-                                int damage = Integer.parseInt(partes[4].trim());
-                                int durabilidad = Integer.parseInt(partes[5].trim());
-                                int rango = Integer.parseInt(partes[6].trim());
-                                item = new Weapon(damage, durabilidad, rango, nombre, cantidad, "Arma sin descripción");
-                            } else {
-                                System.err.println("Datos insuficientes para weapon en línea: " + linea);
-                            }
-                            break;
-                        case "craftable":
-                            item = new Craftable(new Item[]{}, nombre, cantidad, "Objeto craftable sin descripción");
-                            break;
-                        default:
-                            System.err.println("Tipo desconocido o datos insuficientes: " + tipo);
-                    }
-
-                    if (item != null) {
-                        recuperador.insertar(item);
-                    }
-                } catch (NumberFormatException e) {
-                    System.err.println("Error de conversión en línea: " + linea + " - " + e.getMessage());
-                }
+                processLine(linea);
             }
         } catch (IOException e) {
             System.err.println("Error al leer el archivo: " + e.getMessage());
         }
     }
 
-    public void guardarItems() {
-        lock.lock();
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_PATH.toFile(), false))) {
-            for (ListaEnlazada lista : recuperador.getTabla()) {
-                Nodo actual = lista.getCabeza();
-                while (actual != null) {
-                    if (actual.dato instanceof Item item) {
-                        writer.write(item.toString());
-                        writer.newLine();
-                    }
-                    actual = actual.siguiente;
-                }
-            }
-        } catch (IOException e) {
-            System.err.println("Error al escribir en el archivo: " + e.getMessage());
-        } finally {
-            lock.unlock();
-        }
-    }
 }
 
 abstract class Item {
@@ -172,7 +168,7 @@ class Comida extends Item {
     private final ListaEnlazada[] recetas;
     private final String estado, categoria;
 
-    public Comida(int tiempo, ListaEnlazada[] recetas, String nombre, int can, boolean equip, String estado, String categ, String des) {
+    public Comida(int tiempo, ListaEnlazada[] recetas, String nombre, int can, String estado, String categ, String des) {
         super(nombre, can, des);
         this.tiempo = tiempo;
         this.recetas = recetas;
@@ -188,15 +184,29 @@ class Comida extends Item {
 }
 
 class Nodo {
+
     Object dato;
     Nodo siguiente;
-    public Nodo(Object dato) { this.dato = dato; this.siguiente = null; }
+
+    public Nodo(Object dato) {
+        this.dato = dato;
+        this.siguiente = null;
+    }
 }
 
 class ListaEnlazada {
+
     private Nodo cabeza;
-    public void insertar(Object dato) { Nodo nuevo = new Nodo(dato); nuevo.siguiente = cabeza; cabeza = nuevo; }
-    public Nodo getCabeza() { return cabeza; }
+
+    public void insertar(Object dato) {
+        Nodo nuevo = new Nodo(dato);
+        nuevo.siguiente = cabeza;
+        cabeza = nuevo;
+    }
+
+    public Nodo getCabeza() {
+        return cabeza;
+    }
 }
 
 class TablaHash {
