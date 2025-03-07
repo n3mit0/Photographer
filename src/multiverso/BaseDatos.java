@@ -1,103 +1,95 @@
 package multiverso;
 
 import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+import java.util.function.Function;
 
 public class BaseDatos {
 
     private TablaHash recuperador;
-    private static final String FILE_PATH = "C:\\Users\\Nemito\\Documents\\"
-            + "NetBeansProjects\\JavaApplication11\\build\\classes\\multiverso"
-            + "\\BasedeDatos.txt";
+    private static final Path FILE_PATH = Paths.get(System.getProperty("user.dir"), "BasedeDatos.txt");
 
     public BaseDatos() {
         this.recuperador = new TablaHash();
         try {
             getItems();
         } catch (IOException e) {
-            System.out.println("Error al cargar la base de datos: " 
-                    + e.getMessage());
+            System.err.println("Error al cargar la base de datos: " + e.getMessage());
         }
     }
 
     private void getItems() throws IOException {
-        File archivo = new File(FILE_PATH);
-        if (!archivo.exists()) {
+        if (!Files.exists(FILE_PATH)) {
             System.out.println("Archivo no encontrado: " + FILE_PATH);
             return;
         }
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(archivo))) {
+        try (BufferedReader reader = Files.newBufferedReader(FILE_PATH)) {
             String linea;
             while ((linea = reader.readLine()) != null) {
                 if (linea.trim().isEmpty()) continue;
-
-                String[] partes = linea.split(":");
-                if (partes.length < 4) {
-                    System.out.println("Formato incorrecto en la línea: " 
-                            + linea);
-                    continue;
-                }
-
-                try {
-                    String tipo = partes[0].trim();
-                    String nombre = partes[1].trim();
-                    int cantidad = Integer.parseInt(partes[2].trim());
-                    boolean equip = Boolean.parseBoolean(partes[3].trim());
-                    Item item = null;
-
-                    switch (tipo.toLowerCase()) {
-                        case "comida":
-                            if (partes.length < 7) {
-                                System.out.println(
-                                        "Datos insuficientes para comida: " 
-                                                + linea);
-                                continue;
-                            }
-                            int tiempo = Integer.parseInt(partes[4].trim());
-                            String obtain = partes[5].trim();
-                            String estado = partes[6].trim();
-                            String categoria = (partes.length > 7) ? 
-                                    partes[7].trim() : "Desconocida";
-                            item = new Comida(tiempo, 
-                                    new ListaEnlazada[]{new ListaEnlazada()},
-                                    nombre, cantidad, equip, estado, 
-                                    categoria, obtain);
-                            break;
-                        case "weapon":
-                            if (partes.length < 7) {
-                                System.out.println("Datos "
-                                        + "insuficientes para weapon: " + linea);
-                                continue;
-                            }
-                            int damage = Integer.parseInt(partes[4].trim());
-                            int durabilidad = Integer.parseInt(partes[5].trim());
-                            int rango = Integer.parseInt(partes[6].trim());
-                            item = new Weapon(damage, durabilidad, 
-                                    rango, nombre, cantidad, "Arma sin "
-                                            + "descripción");
-                            break;
-                        case "craftable":
-                            item = new Craftable(new Item[]{}, 
-                                    nombre, cantidad, equip, "Objeto "
-                                            + "craftable sin descripción");
-                            break;
-                        default:
-                            System.out.println("Tipo desconocido: " + tipo);
-                    }
-
-                    if (item != null) {
-                        recuperador.insertar(item);
-                    }
-                } catch (NumberFormatException e) {
-                    System.out.println("Error de conversión en línea: " + linea);
-                }
+                procesarLinea(linea);
             }
         }
     }
 
-    public void guardarItems() throws IOException {
-        try (BufferedWriter writer = new BufferedWriter(
-                new FileWriter(FILE_PATH, false))) {
+    private void procesarLinea(String linea) {
+        String[] partes = linea.split(":");
+        if (partes.length < 4) {
+            System.err.println("Formato incorrecto en la línea: " + linea);
+            return;
+        }
+
+        try {
+            String tipo = partes[0].trim().toLowerCase();
+            String nombre = partes[1].trim();
+            int cantidad = Integer.parseInt(partes[2].trim());
+            boolean equip = Boolean.parseBoolean(partes[3].trim());
+
+            Map<String, Function<String[], Item>> creadores = Map.of(
+                "comida", p -> {
+                    if (p.length < 7) {
+                        System.err.println("Datos insuficientes para comida: " + linea);
+                        return null;
+                    }
+                    return new Comida(
+                        Integer.parseInt(p[4].trim()),
+                        new ListaEnlazada[]{new ListaEnlazada()},
+                        p[1].trim(), cantidad, equip, p[6].trim(),
+                        (p.length > 7) ? p[7].trim() : "Desconocida",
+                        p[5].trim()
+                    );
+                },
+                "weapon", p -> {
+                    if (p.length < 7) {
+                        System.err.println("Datos insuficientes para weapon: " + linea);
+                        return null;
+                    }
+                    return new Weapon(
+                        Integer.parseInt(p[4].trim()),
+                        Integer.parseInt(p[5].trim()),
+                        Integer.parseInt(p[6].trim()), nombre, cantidad,
+                        "Arma sin descripción"
+                    );
+                },
+                "craftable", p -> new Craftable(new Item[]{}, nombre, cantidad, equip, "Objeto craftable sin descripción")
+            );
+
+            Item item = creadores.getOrDefault(tipo, p -> {
+                System.err.println("Tipo desconocido: " + tipo);
+                return null;
+            }).apply(partes);
+
+            if (item != null) recuperador.insertar(item);
+
+        } catch (NumberFormatException e) {
+            System.err.println("Error de conversión en línea: " + linea);
+        }
+    }
+
+    public void guardarItems() {
+        try (BufferedWriter writer = Files.newBufferedWriter(FILE_PATH)) {
             for (ListaEnlazada lista : recuperador.getTabla()) {
                 Nodo actual = lista.getCabeza();
                 while (actual != null) {
@@ -109,20 +101,18 @@ public class BaseDatos {
                 }
             }
         } catch (IOException e) {
-            System.out.println("Error al escribir en el archivo: " 
-                    + e.getMessage());
+            System.err.println("Error al escribir en el archivo: " + e.getMessage());
         }
     }
 }
 
-// Implementación de la clase Item y sus subclases
 abstract class Item {
     String nombre;
     int cantidad;
     boolean equip;
     String descripcion;
 
-    public Item(String nombre, int cantidad, boolean equip, String descripcion){
+    public Item(String nombre, int cantidad, boolean equip, String descripcion) {
         this.nombre = nombre;
         this.cantidad = cantidad;
         this.equip = equip;
@@ -136,8 +126,7 @@ abstract class Item {
 class Weapon extends Item {
     int damage, durabilidad, rango;
 
-    public Weapon(int damage, int durabilidad, int rango, String nombre, 
-            int cantidad, String descripcion) {
+    public Weapon(int damage, int durabilidad, int rango, String nombre, int cantidad, String descripcion) {
         super(nombre, cantidad, true, descripcion);
         this.damage = damage;
         this.durabilidad = durabilidad;
@@ -146,24 +135,21 @@ class Weapon extends Item {
 
     @Override
     public String toString() {
-        return "weapon:" + nombre + ":" + cantidad + ":" + equip +
-                ":" + damage + ":" + durabilidad + ":" + rango 
-                + ":" + descripcion;
+        return String.format("weapon:%s:%d:%b:%d:%d:%d:%s", nombre, cantidad, equip, damage, durabilidad, rango, descripcion);
     }
 }
 
 class Craftable extends Item {
     Item[] requerido;
 
-    public Craftable(Item[] requerido, String nombre, int cantidad, 
-            boolean equip, String descripcion) {
+    public Craftable(Item[] requerido, String nombre, int cantidad, boolean equip, String descripcion) {
         super(nombre, cantidad, equip, descripcion);
         this.requerido = requerido;
     }
 
     @Override
     public String toString() {
-        return "craftable:" + nombre + ":" + cantidad + ":" + equip;
+        return String.format("craftable:%s:%d:%b", nombre, cantidad, equip);
     }
 }
 
@@ -172,9 +158,7 @@ class Comida extends Item {
     private ListaEnlazada[] recetas;
     private String estado, categoria;
 
-    public Comida(int tiempo, ListaEnlazada[] recetas, String nombre, 
-            int cantidad, boolean equip, String estado, String categoria,
-            String descripcion) {
+    public Comida(int tiempo, ListaEnlazada[] recetas, String nombre, int cantidad, boolean equip, String estado, String categoria, String descripcion) {
         super(nombre, cantidad, equip, descripcion);
         this.tiempo = tiempo;
         this.recetas = recetas;
@@ -184,34 +168,20 @@ class Comida extends Item {
 
     @Override
     public String toString() {
-        return "comida:" + nombre + ":" + cantidad + ":" + equip + ":" +
-                tiempo + ":" + descripcion + ":" + estado + ":" + categoria;
+        return String.format("comida:%s:%d:%b:%d:%s:%s:%s", nombre, cantidad, equip, tiempo, descripcion, estado, categoria);
     }
 }
 
-// Implementación de la ListaEnlazada, Nodo y TablaHash
 class Nodo {
     Object dato;
     Nodo siguiente;
-    
-    public Nodo(Object dato) {
-        this.dato = dato;
-        this.siguiente = null;
-    }
+    public Nodo(Object dato) { this.dato = dato; this.siguiente = null; }
 }
 
 class ListaEnlazada {
     private Nodo cabeza;
-    
-    public void insertar(Object dato) {
-        Nodo nuevo = new Nodo(dato);
-        nuevo.siguiente = cabeza;
-        cabeza = nuevo;
-    }
-
-    public Nodo getCabeza() {
-        return cabeza;
-    }
+    public void insertar(Object dato) { Nodo nuevo = new Nodo(dato); nuevo.siguiente = cabeza; cabeza = nuevo; }
+    public Nodo getCabeza() { return cabeza; }
 }
 
 class TablaHash {
@@ -220,21 +190,19 @@ class TablaHash {
 
     public TablaHash() {
         tabla = new ListaEnlazada[TAMANO];
-        for (int i = 0; i < TAMANO; i++) {
-            tabla[i] = new ListaEnlazada();
-        }
+        Arrays.setAll(tabla, i -> new ListaEnlazada());
     }
 
-    private int hash(String clave) {
-        return Math.abs(clave.hashCode()) % TAMANO;
+    private int hash(String clave) { return Math.abs(clave.hashCode()) % TAMANO; }
+
+    public void insertar(Item item) { tabla[hash(item.nombre)].insertar(item); }
+
+    public Item buscar(String nombre) {
+        for (Nodo n = tabla[hash(nombre)].getCabeza(); n != null; n = n.siguiente)
+            if (n.dato instanceof Item i && i.nombre.equals(nombre)) return i;
+        return null;
     }
 
-    public void insertar(Item item) {
-        int indice = hash(item.nombre);
-        tabla[indice].insertar(item);
-    }
-
-    public ListaEnlazada[] getTabla() {
-        return tabla;
-    }
+    public void eliminar(String nombre) { /* Método para eliminar un ítem */ }
+    public ListaEnlazada[] getTabla() { return tabla; }
 }
