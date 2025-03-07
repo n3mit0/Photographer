@@ -1,11 +1,12 @@
 package multiverso;
 
+// BaseDatos.java
+import java.util.Comparator;
 import java.io.*;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class BaseDatos {
+class BaseDatos {
 
     private final TablaHash recuperador;
     private static final Path FILE_PATH = Paths.get(System.getProperty("user.dir"), "BasedeDatos.txt");
@@ -14,6 +15,11 @@ public class BaseDatos {
     public BaseDatos() {
         recuperador = new TablaHash();
         getItems();
+    }
+
+    // Método para exponer la tabla hash
+    public TablaHash getRecuperador() {
+        return recuperador;
     }
 
     // Método para guardar (append) un item en el archivo, uno por línea
@@ -26,7 +32,7 @@ public class BaseDatos {
         }
     }
 
-// Método para procesar cada línea, crear el objeto correspondiente y guardarlo
+    // Método para procesar cada línea, crear el objeto correspondiente y guardarlo
     private void processLine(String linea) {
         if (linea.trim().isEmpty()) {
             return;
@@ -46,24 +52,29 @@ public class BaseDatos {
 
             switch (tipo) {
                 case "comida":
-                    // Se requiere al menos 8 partes para tener: tipo, nombre, cantidad, algo, tiempo, algo, estado y categoría
-                    if (partes.length >= 8) {
-                        int tiempo = Integer.parseInt(partes[4].trim());
-                        String estado = partes[6].trim();
-                        String categoria = partes[7].trim();
-                        // Se agrega una descripción por defecto para cumplir con el constructor
-                        item = new Comida(tiempo, new ListaEnlazada[]{new ListaEnlazada()},
-                                nombre, cantidad, estado, categoria, "Comida sin descripción");
+                    // Se requiere al menos 8 partes: comida:nombre:cantidad:tiempo:descripcion:estado:categoria
+                    if (partes.length >= 7) {
+                        if (partes.length >= 7) {
+                            int tiempo = Integer.parseInt(partes[3].trim());
+                            String descripcion = partes[4].trim();
+                            String estado = partes[5].trim();
+                            String categoria = partes[6].trim();
+                            // Se crea una lista enlazada por defecto para las recetas
+                            item = new Comida(tiempo, new ListaEnlazada[]{ new ListaEnlazada() },
+                                    nombre, cantidad, estado, categoria, descripcion);
+                        }
                     } else {
                         System.err.println("Datos insuficientes para comida en línea: " + linea);
                     }
                     break;
                 case "weapon":
+                    // Se requiere: weapon:nombre:cantidad:damage:durabilidad:rango:descripcion
                     if (partes.length >= 7) {
-                        int damage = Integer.parseInt(partes[4].trim());
-                        int durabilidad = Integer.parseInt(partes[5].trim());
-                        int rango = Integer.parseInt(partes[6].trim());
-                        item = new Weapon(damage, durabilidad, rango, nombre, cantidad, "Arma sin descripción");
+                        int damage = Integer.parseInt(partes[3].trim());
+                        int durabilidad = Integer.parseInt(partes[4].trim());
+                        int rango = Integer.parseInt(partes[5].trim());
+                        String descripcion = partes[6].trim();
+                        item = new Weapon(damage, durabilidad, rango, nombre, cantidad, descripcion);
                     } else {
                         System.err.println("Datos insuficientes para weapon en línea: " + linea);
                     }
@@ -76,9 +87,8 @@ public class BaseDatos {
             }
 
             if (item != null) {
-                // Inserta el objeto en la estructura (por ejemplo, una tabla hash)
+                // Inserta el objeto en la tabla hash y lo guarda en el archivo
                 recuperador.insertar(item);
-                // Guarda el objeto en el archivo (append, uno por línea)
                 appendItem(item);
             }
         } catch (NumberFormatException e) {
@@ -86,7 +96,7 @@ public class BaseDatos {
         }
     }
 
-// Método para leer el archivo y procesar cada línea
+    // Método para leer el archivo y procesar cada línea
     private void getItems() {
         File archivo = FILE_PATH.toFile();
         if (!archivo.exists()) {
@@ -103,11 +113,9 @@ public class BaseDatos {
             System.err.println("Error al leer el archivo: " + e.getMessage());
         }
     }
-
 }
-
+// Item.java (incluye las clases Item y sus subclases)
 abstract class Item {
-
     String nombre;
     int cantidad;
     boolean equip;
@@ -142,7 +150,7 @@ class Weapon extends Item {
 
     @Override
     public String toString() {
-        return "weapon:" + nombre + ":" + cantidad + ":" + equip + ":" + damage + ":" + durabilidad + ":" + rango + ":" + descripcion;
+        return "weapon:" + nombre + ":" + cantidad + ":" + damage + ":" + durabilidad + ":" + rango + ":" + descripcion;
     }
 }
 
@@ -177,38 +185,27 @@ class Comida extends Item {
         this.equip = false;
     }
 
+    // Método para obtener la prioridad basado en la categoría
+    public int getPrioridad() {
+        switch (categoria) {
+            case "Rojo":
+                return 3;
+            case "Amarillo":
+                return 2;
+            case "Verde":
+                return 1;
+            default:
+                return 0;
+        }
+    }
+
     @Override
     public String toString() {
-        return "comida:" + nombre + ":" + cantidad + ":" + equip + ":" + tiempo + ":" + descripcion + ":" + estado + ":" + categoria;
+        return "comida:" + nombre + ":" + cantidad + ":" + tiempo + ":" + descripcion + ":" + estado + ":" + categoria;
     }
 }
 
-class Nodo {
-
-    Object dato;
-    Nodo siguiente;
-
-    public Nodo(Object dato) {
-        this.dato = dato;
-        this.siguiente = null;
-    }
-}
-
-class ListaEnlazada {
-
-    private Nodo cabeza;
-
-    public void insertar(Object dato) {
-        Nodo nuevo = new Nodo(dato);
-        nuevo.siguiente = cabeza;
-        cabeza = nuevo;
-    }
-
-    public Nodo getCabeza() {
-        return cabeza;
-    }
-}
-
+// TablaHash.java y ListaEnlazada.java
 class TablaHash {
 
     private static final int TAMANO = 10;
@@ -234,3 +231,125 @@ class TablaHash {
         return tabla;
     }
 }
+
+class Nodo {
+    Object dato;
+    Nodo siguiente;
+
+    public Nodo(Object dato) {
+        this.dato = dato;
+        this.siguiente = null;
+    }
+}
+
+class ListaEnlazada {
+
+    private Nodo cabeza;
+
+    public void insertar(Object dato) {
+        Nodo nuevo = new Nodo(dato);
+        nuevo.siguiente = cabeza;
+        cabeza = nuevo;
+    }
+
+    public Nodo getCabeza() {
+        return cabeza;
+    }
+}
+
+// ArbolBinario.java (estructura genérica de árbol binario)
+
+
+class NodoArbolGenerico<T> {
+    T dato;
+    NodoArbolGenerico<T> izquierda, derecha;
+
+    public NodoArbolGenerico(T dato) {
+        this.dato = dato;
+        this.izquierda = this.derecha = null;
+    }
+}
+
+class ArbolBinario<T> {
+
+    private NodoArbolGenerico<T> raiz;
+    private final Comparator<T> comparator;
+
+    public ArbolBinario(Comparator<T> comparator) {
+        this.comparator = comparator;
+    }
+
+    public void insertar(T dato) {
+        raiz = insertarRec(raiz, dato);
+    }
+
+    private NodoArbolGenerico<T> insertarRec(NodoArbolGenerico<T> nodo, T dato) {
+        if (nodo == null) {
+            return new NodoArbolGenerico<>(dato);
+        }
+        if (comparator.compare(dato, nodo.dato) < 0) {
+            nodo.izquierda = insertarRec(nodo.izquierda, dato);
+        } else {
+            nodo.derecha = insertarRec(nodo.derecha, dato);
+        }
+        return nodo;
+    }
+
+    public void inOrden() {
+        inOrdenRec(raiz);
+        System.out.println();
+    }
+
+    private void inOrdenRec(NodoArbolGenerico<T> nodo) {
+        if (nodo != null) {
+            inOrdenRec(nodo.izquierda);
+            System.out.println(nodo.dato);
+            inOrdenRec(nodo.derecha);
+        }
+    }
+}
+
+// OrganizadorArboles.java
+class OrganizadorArboles {
+
+    private final ArbolBinario<Comida> arbolComida;
+    private final ArbolBinario<Weapon> arbolWeapon;
+    private final ArbolBinario<Craftable> arbolCraftable;
+
+    public OrganizadorArboles(BaseDatos baseDatos) {
+        // Para Comida se ordena según la prioridad
+        arbolComida = new ArbolBinario<>((c1, c2) -> Integer.compare(c1.getPrioridad(), c2.getPrioridad()));
+        // Para Weapon y Craftable se ordena alfabéticamente por nombre
+        arbolWeapon = new ArbolBinario<>((w1, w2) -> w1.nombre.compareTo(w2.nombre));
+        arbolCraftable = new ArbolBinario<>((c1, c2) -> c1.nombre.compareTo(c2.nombre));
+
+        // Se recorre la tabla hash para clasificar cada item
+        TablaHash tablaHash = baseDatos.getRecuperador();
+        ListaEnlazada[] tabla = tablaHash.getTabla();
+        for (ListaEnlazada lista : tabla) {
+            Nodo nodo = lista.getCabeza();
+            while (nodo != null) {
+                Object dato = nodo.dato;
+                if (dato instanceof Comida) {
+                    arbolComida.insertar((Comida) dato);
+                } else if (dato instanceof Weapon) {
+                    arbolWeapon.insertar((Weapon) dato);
+                } else if (dato instanceof Craftable) {
+                    arbolCraftable.insertar((Craftable) dato);
+                }
+                nodo = nodo.siguiente;
+            }
+        }
+    }
+
+    public void mostrarArboles() {
+        System.out.println("=== Árbol de Comida (ordenado por prioridad) ===");
+        arbolComida.inOrden();
+        System.out.println("=== Árbol de Weapon (ordenado por nombre) ===");
+        arbolWeapon.inOrden();
+        System.out.println("=== Árbol de Craftable (ordenado por nombre) ===");
+        arbolCraftable.inOrden();
+    }
+}
+
+

@@ -1,0 +1,37 @@
+comida:Apple Cider
+craftable:Ashes
+comida:Asparagus
+weapon:Axe
+crafteable:Azure Feather
+weapon:Bat Bat
+crafteable:Batilisk Wing
+crafteable:Beard Hair
+crafteable:Beefalo Horn
+weapon:Bee Mine
+crafteable:Beeswax
+comida:Berries
+comida:Birchnut
+comida:Blue Cap
+weapon:Blow Dart
+crafteable:Boards
+crafteable:Bone Shards
+weapon:Boomerang
+comida:Braised Eggplant
+weapon:Bug Net
+crafteable:Bunny Puff
+comida:Butter
+comida:Butterfly Wings
+comida:Cactus Flesh
+comida:Cactus Flower
+comida:Candy Apple
+comida:Candy Cane
+comida:Candy Corn
+comida:Carrot
+crafteable:Cat Tail
+comida:Cave Banana
+comida:Chocolate Log Cake
+comida:Chocolate Pigs
+comida:Cooked Asparagus
+weapon:Crow
+weapon:Dark Sword
+weapon:Fishing Rod
